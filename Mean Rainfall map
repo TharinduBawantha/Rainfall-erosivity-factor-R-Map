@@ -1,0 +1,8 @@
+# Load the packages
+library(gstat)
+library(sp)
+library(ggplot2)
+library(sf)
+library(raster)
+library(viridis)
+library(ggspatial)
