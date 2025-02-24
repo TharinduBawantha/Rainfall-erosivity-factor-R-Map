@@ -1,0 +1,56 @@
+# Load the packages
+library(raster)
+library(gstat)
+library(ggplot2)
+library(sf)
+library(viridis)
+library(ggspatial)
+
+# Load the mean annual rainfall data
+mean_rainfall_raster <- raster("mean_annual_rainfall_rathnapura.tif")
+
+# Calculate the Rainfall Erosivity Factor (R factor)
+erosivity_raster <- calc(mean_rainfall_raster, fun = function(MAR) {
+  (972.75 + 9.95 * MAR) / 100
+})
+
+# Save the erosivity raster as a GeoTIFF file
+writeRaster(erosivity_raster, filename="rainfall_erosivity_rathnapura.tif", format="GTiff", overwrite=TRUE)
+
+# Convert the erosivity raster to a data frame for plotting
+erosivity_df <- as.data.frame(erosivity_raster, xy = TRUE)
+colnames(erosivity_df) <- c("longitude", "latitude", "erosivity")
+erosivity_df <- erosivity_df[!is.na(erosivity_df$erosivity), ]
+
+# Define equal intervals for the erosivity factor
+num_intervals <- 5  # Number of intervals
+breaks <- seq(min(erosivity_df$erosivity), max(erosivity_df$erosivity), length.out = num_intervals + 1)
+
+# Assign intervals to the data
+erosivity_df$interval <- cut(erosivity_df$erosivity, breaks = breaks, include.lowest = TRUE, labels = FALSE)
+
+# Create the legend
+interval_labels <- sapply(1:num_intervals, function(i) {
+  paste0(round(breaks[i]), " - ", round(breaks[i + 1]))
+})
+
+# Define colors for the intervals
+interval_colors <- viridis::viridis(num_intervals)
+
+# Load the shapefile
+rathnapura_shapefile <- st_read("rathnapura.shp")
+
+# Plot the map
+ggplot() +
+  geom_raster(data = erosivity_df, aes(x = longitude, y = latitude, fill = factor(interval))) +
+  geom_sf(data = rathnapura_shapefile, fill = NA, color = "black") +  # Shapefile boundary
+  scale_fill_manual(values = interval_colors, name = "R factor", labels = interval_labels) +  # Apply equal interval colors with custom labels
+  coord_sf(expand = FALSE) +
+  theme_minimal() +
+  labs(title = "Rainfall Erosivity Factor Rathnapura District (2019-2023)") +  # Remove axis titles
+  theme(panel.grid.major = element_line(color = "grey", size = 0.4),  # Add latitude and longitude grid lines
+        panel.grid.minor = element_blank(),  # Remove minor grid lines
+        axis.text.x = element_text(size = 6, angle = 0),  # Add x-axis labels without angle
+        axis.text.y = element_text(size = 6),  # Add y-axis labels
+        axis.title.x = element_blank(),  # Remove x-axis title
+        axis.title.y = element_blank())  # Remove y-axis title
